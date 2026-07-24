@@ -257,6 +257,28 @@
   .who-info .t{font-size:11.5px; color:var(--leaf);}
   .order-head .right{display:flex; align-items:center; gap:14px;}
   .order-head .tot{font-family:'Fraunces',serif; font-weight:700; font-size:16.5px; color:var(--forest-deep);}
+  .delete-order-btn{
+    border:1px solid rgba(183,52,52,.20);
+    background:#FFF1F1;
+    color:#B73434;
+    border-radius:10px;
+    padding:7px 10px;
+    font-size:12px;
+    font-weight:700;
+    line-height:1;
+    white-space:nowrap;
+    transition:background .15s, color .15s, transform .12s, opacity .15s;
+  }
+  .delete-order-btn:hover{
+    background:#B73434;
+    color:#fff;
+    transform:translateY(-1px);
+  }
+  .delete-order-btn:disabled{
+    opacity:.55;
+    cursor:not-allowed;
+    transform:none;
+  }
   .chev{transition:transform .2s; color:var(--leaf);}
   .order-card.open .chev{transform:rotate(180deg);}
   .order-body{
@@ -381,6 +403,7 @@
     onValue,
     push,
     set,
+    remove,
     serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 
@@ -777,6 +800,12 @@
             </div>
             <div class="right">
               <div class="tot">${fmt(order.total)}</div>
+              <button
+                type="button"
+                class="delete-order-btn"
+                data-order-id="${escapeHtml(order.id)}"
+                aria-label="Xóa đơn của ${safeName}"
+              >🗑 Xóa</button>
               <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M6 9l6 6 6-6"/>
               </svg>
@@ -800,8 +829,42 @@
       `;
     }).join('');
 
+    ordersListEl.querySelectorAll('.delete-order-btn').forEach(button => {
+      button.addEventListener('click', async event => {
+        event.stopPropagation();
+
+        const orderId = button.dataset.orderId;
+        const order = orders.find(item => String(item.id) === String(orderId));
+        const orderName = order?.name || 'người này';
+
+        if(!firebaseReady || !database){
+          showToast('Firebase chưa sẵn sàng');
+          return;
+        }
+
+        if(!confirm(`Xóa đơn của ${orderName}? Thao tác này không thể hoàn tác.`)){
+          return;
+        }
+
+        const oldLabel = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Đang xóa…';
+
+        try{
+          await remove(ref(database, `orders/${orderId}`));
+          showToast(`Đã xóa đơn của ${orderName}`);
+        }catch(error){
+          console.error('Firebase delete error:', error);
+          button.disabled = false;
+          button.textContent = oldLabel;
+          showToast('Không thể xóa đơn — kiểm tra Firebase Rules');
+        }
+      });
+    });
+
     ordersListEl.querySelectorAll('.order-head').forEach(head => {
-      head.addEventListener('click', () => {
+      head.addEventListener('click', event => {
+        if(event.target.closest('.delete-order-btn')) return;
         head.closest('.order-card').classList.toggle('open');
       });
     });

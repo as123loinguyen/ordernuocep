@@ -216,6 +216,64 @@
   .cart-row .name{font-weight:600; color:var(--ink);}
   .cart-row .meta{color:var(--leaf); font-size:12px;}
   .cart-row .amt{font-weight:700; color:var(--forest-deep); white-space:nowrap;}
+  .order-note-box{
+    margin:14px 0;
+    padding:13px;
+    border:1px solid var(--line);
+    border-radius:14px;
+    background:var(--cream-2);
+  }
+  .order-note-label{
+    display:block;
+    font-size:12.5px;
+    font-weight:700;
+    color:var(--forest-deep);
+    margin-bottom:8px;
+  }
+  .note-quick-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:8px;
+  }
+  .note-chip{
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--leaf);
+    border-radius:100px;
+    padding:6px 9px;
+    font-size:11.5px;
+    font-weight:600;
+    transition:all .15s;
+  }
+  .note-chip:hover{
+    border-color:var(--citrus);
+    color:var(--citrus-deep);
+    background:#FFF9ED;
+  }
+  #orderNote{
+    width:100%;
+    min-height:72px;
+    resize:vertical;
+    border:1.5px solid var(--line);
+    border-radius:11px;
+    padding:10px 11px;
+    font:inherit;
+    font-size:12.5px;
+    line-height:1.45;
+    outline:none;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  #orderNote:focus{
+    border-color:var(--citrus);
+  }
+  .note-counter{
+    margin-top:5px;
+    text-align:right;
+    color:var(--leaf);
+    font-size:10.5px;
+  }
   .cart-total{
     display:flex; justify-content:space-between; align-items:baseline;
     padding-top:14px; border-top:1.5px solid var(--line); margin-bottom:14px;
@@ -321,6 +379,19 @@
   }
   .order-card.open .order-body{max-height:400px;}
   .order-body-inner{padding:14px 18px;}
+  .saved-note{
+    margin-top:10px;
+    padding:10px 12px;
+    border-radius:11px;
+    background:#FFF9ED;
+    border:1px solid rgba(240,160,42,.22);
+    color:var(--forest-deep);
+    font-size:12.5px;
+    line-height:1.45;
+  }
+  .saved-note strong{
+    color:var(--citrus-deep);
+  }
   .ob-row{display:flex; justify-content:space-between; font-size:13.5px; padding:6px 0; color:var(--ink);}
   .ob-row .meta{color:var(--leaf); font-size:11.5px;}
 
@@ -386,6 +457,23 @@
         <span class="cart-count" id="cartCountBadge">0 món</span>
       </div>
       <div id="cartItems"></div>
+
+      <div class="order-note-box">
+        <label class="order-note-label" for="orderNote">Ghi chú đường / đá</label>
+        <div class="note-quick-row">
+          <button type="button" class="note-chip" data-note="Không đường">Không đường</button>
+          <button type="button" class="note-chip" data-note="Ít đường">Ít đường</button>
+          <button type="button" class="note-chip" data-note="Ít đá">Ít đá</button>
+          <button type="button" class="note-chip" data-note="Không đá">Không đá</button>
+        </div>
+        <textarea
+          id="orderNote"
+          maxlength="120"
+          placeholder="Ví dụ: 30% đường, ít đá; ly matcha không đá..."
+        ></textarea>
+        <div class="note-counter"><span id="noteCount">0</span>/120</div>
+      </div>
+
       <div class="cart-total">
         <div class="label">Tổng cộng</div>
         <div class="value" id="cartTotal">0 đ</div>
@@ -583,6 +671,8 @@
     }
 
     cart = {};
+    orderNoteEl.value = '';
+    noteCountEl.textContent = '0';
     currentUser = null;
     document.getElementById('greetName').textContent = '—';
     MENU.forEach(item => {
@@ -661,6 +751,27 @@
   const cartTotalEl = document.getElementById('cartTotal');
   const cartCountBadge = document.getElementById('cartCountBadge');
   const submitBtn = document.getElementById('submitOrderBtn');
+  const orderNoteEl = document.getElementById('orderNote');
+  const noteCountEl = document.getElementById('noteCount');
+
+  orderNoteEl.addEventListener('input', () => {
+    noteCountEl.textContent = orderNoteEl.value.length;
+  });
+
+  document.querySelectorAll('.note-chip').forEach(button => {
+    button.addEventListener('click', () => {
+      const note = button.dataset.note;
+      const current = orderNoteEl.value.trim();
+
+      if(current.toLowerCase().includes(note.toLowerCase())){
+        return;
+      }
+
+      orderNoteEl.value = current ? `${current}, ${note}` : note;
+      orderNoteEl.dispatchEvent(new Event('input'));
+      orderNoteEl.focus();
+    });
+  });
 
   function getCartEntries(){
     return Object.entries(cart).filter(([, qty]) => qty > 0);
@@ -737,6 +848,7 @@
       name: currentUser,
       items,
       total,
+      note: orderNoteEl.value.trim(),
       createdAt: serverTimestamp(),
       clientCreatedAt: Date.now()
     };
@@ -753,6 +865,9 @@
       await set(newOrderRef, newOrder);
 
       cart = {};
+      orderNoteEl.value = '';
+      noteCountEl.textContent = '0';
+
       MENU.forEach(item => {
         const qty = document.getElementById('qty-' + item.id);
         if(qty) qty.textContent = '0';
@@ -864,6 +979,11 @@
                   <div>${fmt(Number(item.price || 0) * Number(item.qty || 0))}</div>
                 </div>
               `).join('')}
+              ${String(order.note || '').trim() ? `
+                <div class="saved-note">
+                  <strong>Ghi chú:</strong> ${escapeHtml(order.note)}
+                </div>
+              ` : ''}
             </div>
           </div>
         </div>

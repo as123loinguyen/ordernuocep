@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giải Nhiệt Mùa Hè — Order</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#FAF6EC;
+    --cream-2:#F1ECDD;
+    --forest:#1B4332;
+    --forest-deep:#0F2E22;
+    --leaf:#52796F;
+    --citrus:#F0A02A;
+    --citrus-deep:#D9860F;
+    --watermelon:#E5586B;
+    --ink:#2A2620;
+    --paper:#FFFFFF;
+    --line: rgba(27,67,50,0.14);
+    --shadow: 0 8px 24px rgba(27,67,50,0.10);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Be Vietnam Pro', sans-serif;
+    background:
+      radial-gradient(circle at 8% 12%, rgba(240,160,42,0.10), transparent 40%),
+      radial-gradient(circle at 92% 85%, rgba(82,121,111,0.14), transparent 45%),
+      var(--cream);
+    color:var(--ink);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3, .display{
+    font-family:'Fraunces', serif;
+  }
+  button{font-family:inherit;cursor:pointer;}
+  input{font-family:inherit;}
+
+  /* ---------- Modal ---------- */
+  #nameModal{
+    position:fixed; inset:0; z-index:100;
+    display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(180deg, rgba(15,46,34,0.55), rgba(15,46,34,0.75));
+    backdrop-filter: blur(3px);
+    padding:20px;
+  }
+  .modal-card{
+    background:var(--paper);
+    border-radius:24px;
+    padding:40px 36px 32px;
+    max-width:380px; width:100%;
+    text-align:center;
+    box-shadow:0 30px 60px rgba(15,46,34,0.35);
+    position:relative;
+    overflow:hidden;
+  }
+  .modal-card::before{
+    content:"";
+    position:absolute; top:-60px; right:-60px;
+    width:160px; height:160px; border-radius:50%;
+    background:radial-gradient(circle, rgba(240,160,42,0.25), transparent 70%);
+  }
+  .modal-badge{
+    width:64px;height:64px;border-radius:50%;
+    background:linear-gradient(135deg,var(--citrus),var(--citrus-deep));
+    display:flex;align-items:center;justify-content:center;
+    font-size:30px; margin:0 auto 18px;
+    box-shadow:0 8px 18px rgba(217,134,15,0.35);
+  }
+  .modal-card h2{
+    color:var(--forest-deep); font-size:26px; margin:0 0 6px; font-weight:700;
+  }
+  .modal-card p{
+    color:var(--leaf); font-size:14.5px; margin:0 0 22px; line-height:1.5;
+  }
+  #nameInput{
+    width:100%; padding:14px 16px; border-radius:14px;
+    border:1.5px solid var(--line); font-size:15.5px;
+    outline:none; margin-bottom:14px; background:var(--cream-2);
+    transition:border-color .15s, background .15s;
+  }
+  #nameInput:focus{border-color:var(--citrus); background:var(--paper);}
+  #startBtn{
+    width:100%; padding:14px; border:none; border-radius:14px;
+    background:var(--forest); color:#fff; font-size:15.5px; font-weight:600;
+    letter-spacing:0.2px;
+    transition:transform .12s, background .15s;
+  }
+  #startBtn:hover{background:var(--forest-deep); transform:translateY(-1px);}
+  #startBtn:disabled{opacity:.5; cursor:not-allowed;}
+
+  /* ---------- Layout ---------- */
+  .wrap{max-width:1180px; margin:0 auto; padding:0 20px 100px;}
+  header.top{
+    padding:34px 20px 22px; text-align:center; position:relative;
+  }
+  .eyebrow{
+    color:var(--citrus-deep); font-weight:700; font-size:12.5px;
+    letter-spacing:1.6px; text-transform:uppercase; margin-bottom:8px;
+  }
+  header.top h1{
+    color:var(--forest-deep); font-size:clamp(28px,4.5vw,44px);
+    margin:0 0 8px; font-weight:800; letter-spacing:-0.5px;
+  }
+  header.top .sub{
+    color:var(--leaf); font-size:15px; max-width:460px; margin:0 auto;
+  }
+  .greet-row{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    margin-top:18px; flex-wrap:wrap;
+  }
+  .greet-pill{
+    background:var(--paper); border:1px solid var(--line); border-radius:100px;
+    padding:8px 16px; font-size:13.5px; color:var(--forest-deep); font-weight:600;
+    box-shadow:var(--shadow);
+  }
+  .greet-pill span{color:var(--citrus-deep);}
+  .switch-link{
+    background:none;border:none;color:var(--leaf); font-size:13px;
+    text-decoration:underline; text-underline-offset:3px; padding:0;
+  }
+
+  /* tabs */
+  .tabs{
+    display:flex; gap:6px; justify-content:center; margin:24px 0 30px;
+    background:var(--cream-2); padding:5px; border-radius:100px;
+    width:fit-content; margin-left:auto; margin-right:auto;
+  }
+  .tab-btn{
+    border:none; background:transparent; padding:10px 22px; border-radius:100px;
+    font-size:14px; font-weight:600; color:var(--leaf); transition:all .15s;
+  }
+  .tab-btn.active{background:var(--forest); color:#fff; box-shadow:0 4px 10px rgba(27,67,50,0.25);}
+
+  /* ---------- Order view ---------- */
+  .order-layout{
+    display:grid; grid-template-columns:1fr 340px; gap:28px; align-items:start;
+  }
+  @media (max-width:880px){
+    .order-layout{grid-template-columns:1fr;}
+  }
+  .menu-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:16px;
+  }
+  @media (max-width:560px){ .menu-grid{grid-template-columns:1fr;} }
+
+  .item-card{
+    background:var(--paper); border-radius:18px; padding:16px;
+    border:1px solid var(--line); box-shadow:var(--shadow);
+    display:flex; flex-direction:column; gap:12px;
+    transition:transform .15s, box-shadow .15s;
+  }
+  .item-card:hover{transform:translateY(-3px); box-shadow:0 14px 30px rgba(27,67,50,0.14);}
+  .item-top{display:flex; gap:12px; align-items:flex-start;}
+  .item-icon{
+    width:52px; height:52px; min-width:52px; border-radius:14px;
+    display:flex; align-items:center; justify-content:center; font-size:26px;
+  }
+  .item-info{flex:1;}
+  .item-info h3{margin:0 0 3px; font-size:16.5px; color:var(--forest-deep); font-weight:700;}
+  .item-info .desc{font-size:12.5px; color:var(--leaf); line-height:1.35;}
+  .item-bottom{display:flex; align-items:center; justify-content:space-between; margin-top:auto;}
+  .price{font-family:'Fraunces',serif; font-weight:700; font-size:18px; color:var(--forest);}
+  .stepper{display:flex; align-items:center; gap:0; border:1.5px solid var(--line); border-radius:100px; overflow:hidden;}
+  .stepper button{
+    width:32px; height:32px; border:none; background:var(--cream-2); color:var(--forest-deep);
+    font-size:16px; font-weight:700; display:flex; align-items:center; justify-content:center;
+    transition:background .12s;
+  }
+  .stepper button:hover{background:var(--citrus); color:#fff;}
+  .stepper .qty{width:30px; text-align:center; font-weight:700; font-size:14px;}
+
+  /* cart panel */
+  .cart-panel{
+    background:var(--paper); border-radius:20px; border:1px solid var(--line);
+    box-shadow:var(--shadow); padding:20px; position:sticky; top:20px;
+  }
+  .cart-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+  .cart-head h3{margin:0; font-size:17px; color:var(--forest-deep);}
+  .cart-count{
+    background:var(--forest); color:#fff; font-size:11.5px; font-weight:700;
+    padding:3px 9px; border-radius:100px;
+  }
+  #cartItems{display:flex; flex-direction:column; gap:10px; max-height:340px; overflow-y:auto; margin-bottom:14px;}
+  .empty-cart{
+    text-align:center; padding:30px 10px; color:var(--leaf); font-size:13.5px;
+  }
+  .glass-icon{width:46px; margin:0 auto 10px; display:block;}
+  .cart-row{
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    font-size:13.5px; padding-bottom:10px; border-bottom:1px dashed var(--line);
+  }
+  .cart-row:last-child{border-bottom:none; padding-bottom:0;}
+  .cart-row .name{font-weight:600; color:var(--ink);}
+  .cart-row .meta{color:var(--leaf); font-size:12px;}
+  .cart-row .amt{font-weight:700; color:var(--forest-deep); white-space:nowrap;}
+  .cart-total{
+    display:flex; justify-content:space-between; align-items:baseline;
+    padding-top:14px; border-top:1.5px solid var(--line); margin-bottom:14px;
+  }
+  .cart-total .label{font-size:13.5px; color:var(--leaf); font-weight:600;}
+  .cart-total .value{font-family:'Fraunces',serif; font-size:24px; font-weight:700; color:var(--forest-deep);}
+  #submitOrderBtn{
+    width:100%; padding:14px; border:none; border-radius:14px;
+    background:var(--citrus); color:#fff; font-weight:700; font-size:14.5px;
+    box-shadow:0 8px 18px rgba(217,134,15,0.3); transition:transform .12s, background .15s;
+  }
+  #submitOrderBtn:hover{background:var(--citrus-deep); transform:translateY(-1px);}
+  #submitOrderBtn:disabled{opacity:.4; cursor:not-allowed; transform:none; box-shadow:none;}
+
+  /* ---------- Placed orders view ---------- */
+  .summary-bar{
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;
+    background:var(--paper); border:1px solid var(--line); border-radius:16px;
+    padding:16px 20px; margin-bottom:22px; box-shadow:var(--shadow);
+  }
+  .summary-bar .s-left{font-size:13.5px; color:var(--leaf); font-weight:600;}
+  .summary-bar .s-total{font-family:'Fraunces',serif; font-size:22px; font-weight:700; color:var(--forest-deep);}
+
+  .orders-list{display:flex; flex-direction:column; gap:12px;}
+  .order-card{
+    background:var(--paper); border:1px solid var(--line); border-radius:16px;
+    box-shadow:var(--shadow); overflow:hidden;
+  }
+  .order-head{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:16px 18px; cursor:pointer; user-select:none;
+  }
+  .order-head .who{display:flex; align-items:center; gap:12px;}
+  .avatar{
+    width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,var(--leaf),var(--forest));
+    color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14.5px;
+  }
+  .who-info .n{font-weight:700; font-size:14.5px; color:var(--forest-deep);}
+  .who-info .t{font-size:11.5px; color:var(--leaf);}
+  .order-head .right{display:flex; align-items:center; gap:14px;}
+  .order-head .tot{font-family:'Fraunces',serif; font-weight:700; font-size:16.5px; color:var(--forest-deep);}
+  .chev{transition:transform .2s; color:var(--leaf);}
+  .order-card.open .chev{transform:rotate(180deg);}
+  .order-body{
+    max-height:0; overflow:hidden; transition:max-height .25s ease;
+    border-top:1px solid var(--line);
+  }
+  .order-card.open .order-body{max-height:400px;}
+  .order-body-inner{padding:14px 18px;}
+  .ob-row{display:flex; justify-content:space-between; font-size:13.5px; padding:6px 0; color:var(--ink);}
+  .ob-row .meta{color:var(--leaf); font-size:11.5px;}
+
+  .empty-state{
+    text-align:center; padding:70px 20px; color:var(--leaf);
+  }
+  .empty-state .em-icon{font-size:38px; margin-bottom:10px;}
+  .empty-state h3{color:var(--forest-deep); margin:0 0 6px;}
+  .empty-state p{font-size:13.5px; margin:0;}
+
+  .toast{
+    position:fixed; bottom:26px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--forest-deep); color:#fff; padding:14px 22px; border-radius:100px;
+    font-size:13.5px; font-weight:600; box-shadow:0 12px 30px rgba(0,0,0,0.25);
+    opacity:0; pointer-events:none; transition:all .25s ease; z-index:200;
+    display:flex; align-items:center; gap:8px;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--line); border-radius:10px;}
+</style>
+</head>
+<body>
+
+<div id="nameModal">
+  <div class="modal-card">
+    <div class="modal-badge">🍊</div>
+    <h2>Chào bạn!</h2>
+    <p>Nhập tên để bắt đầu đặt món từ menu giải nhiệt mùa hè nhé</p>
+    <input id="nameInput" type="text" placeholder="Tên của bạn..." maxlength="30" autocomplete="off">
+    <button id="startBtn" disabled>Bắt đầu đặt món</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Nước Ép Nguyên Chất &amp; Thức Uống Sức Khỏe</div>
+    <h1>Menu Giải Nhiệt Mùa Hè</h1>
+    <div class="sub">100% nguyên chất — tươi mỗi ngày. Chọn món bạn thích rồi gửi đơn nhé.</div>
+    <div class="greet-row">
+      <div class="greet-pill">Xin chào, <span id="greetName">—</span></div>
+      <button class="switch-link" id="switchUserBtn">Đổi người khác</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tabOrderBtn">Đặt món</button>
+    <button class="tab-btn" id="tabListBtn">Đã đặt (<span id="orderCountTab">0</span>)</button>
+  </div>
+
+  <!-- ORDER VIEW -->
+  <div id="orderView" class="order-layout">
+    <div class="menu-grid" id="menuGrid"></div>
+
+    <div class="cart-panel">
+      <div class="cart-head">
+        <h3>Giỏ của bạn</h3>
+        <span class="cart-count" id="cartCountBadge">0 món</span>
+      </div>
+      <div id="cartItems"></div>
+      <div class="cart-total">
+        <div class="label">Tổng cộng</div>
+        <div class="value" id="cartTotal">0 đ</div>
+      </div>
+      <button id="submitOrderBtn" disabled>Gửi đơn đặt món</button>
+    </div>
+  </div>
+
+  <!-- PLACED ORDERS VIEW -->
+  <div id="listView" style="display:none;">
+    <div class="summary-bar">
+      <div class="s-left">
+        <span id="summaryCount">Chưa có đơn nào</span>
+        <span style="color:var(--leaf); font-weight:400;"> · danh sách dùng chung, tự làm mới mỗi 5 giây</span>
+      </div>
+      <div class="s-total" id="summaryTotal">0 đ</div>
+    </div>
+    <div class="orders-list" id="ordersList"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ---------- Data ----------
+  const MENU = [
+    { id:'cam', name:'Nước cam', desc:'Tăng cường hệ miễn dịch', price:15000, icon:'🍊', bg:'#FDECD2' },
+    { id:'oi', name:'Ép ổi', desc:'Bổ sung vitamin C', price:17000, icon:'🍈', bg:'#E4F3D8' },
+    { id:'dua', name:'Ép dứa', desc:'Kháng viêm tốt', price:17000, icon:'🍍', bg:'#FCF3C7' },
+    { id:'carot', name:'Ép cà rốt', desc:'Cải thiện tiêu hóa', price:17000, icon:'🥕', bg:'#FBE3CE' },
+    { id:'cuden', name:'Ép củ dền', desc:'Bổ máu, thải độc', price:17000, icon:'🔴', bg:'#F7DEE3' },
+    { id:'cachua', name:'Ép cà chua', desc:'Đẹp da', price:17000, icon:'🍅', bg:'#FBE0DD' },
+    { id:'cantay', name:'Ép cần tây', desc:'Hỗ trợ giảm cân', price:18000, icon:'🥬', bg:'#E1EFD9' },
+    { id:'matcha', name:'Matcha Latte', desc:'Thơm béo, mát lạnh', price:25000, icon:'🍵', bg:'#DCEBD4' },
+  ];
+
+  // ---------- State ----------
+  // currentUser + cart: riêng cho từng thiết bị (chỉ mình bạn thấy trong lúc chọn món)
+  // orders: DÙNG CHUNG cho mọi thiết bị qua window.storage (shared)
+  let currentUser = null;
+  let cart = {}; // id -> qty
+  let orders = []; // { id, name, items:[{id,name,price,qty}], total, time }
+  const ORDERS_KEY = 'juice-orders-list';
+
+  async function loadOrders(){
+    try{
+      const res = await window.storage.get(ORDERS_KEY, true);
+      return res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){
+      return [];
+    }
+  }
+  async function saveOrders(list){
+    try{
+      await window.storage.set(ORDERS_KEY, JSON.stringify(list), true);
+      return true;
+    }catch(e){
+      console.error('Lưu đơn thất bại', e);
+      return false;
+    }
+  }
+  async function refreshOrders(){
+    orders = await loadOrders();
+    document.getElementById('orderCountTab').textContent = orders.length;
+    if(listView.style.display !== 'none') renderOrdersList();
+  }
+
+  const fmt = n => n.toLocaleString('vi-VN') + ' đ';
+
+  // ---------- Modal ----------
+  const nameModal = document.getElementById('nameModal');
+  const nameInput = document.getElementById('nameInput');
+  const startBtn = document.getElementById('startBtn');
+
+  nameInput.addEventListener('input', () => {
+    startBtn.disabled = nameInput.value.trim().length === 0;
+  });
+  nameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !startBtn.disabled) startOrdering();
+  });
+  startBtn.addEventListener('click', startOrdering);
+
+  function startOrdering(){
+    const val = nameInput.value.trim();
+    if(!val) return;
+    currentUser = val;
+    document.getElementById('greetName').textContent = currentUser;
+    nameModal.style.display = 'none';
+    nameInput.value = '';
+    renderCart();
+  }
+
+  document.getElementById('switchUserBtn').addEventListener('click', () => {
+    const hasItems = Object.values(cart).some(q => q > 0);
+    if(hasItems && !confirm('Giỏ hàng hiện tại chưa gửi sẽ bị xoá. Đổi người khác chứ?')) return;
+    cart = {};
+    currentUser = null;
+    nameModal.style.display = 'flex';
+    setTimeout(()=>nameInput.focus(), 100);
+  });
+
+  // ---------- Tabs ----------
+  const tabOrderBtn = document.getElementById('tabOrderBtn');
+  const tabListBtn = document.getElementById('tabListBtn');
+  const orderView = document.getElementById('orderView');
+  const listView = document.getElementById('listView');
+
+  tabOrderBtn.addEventListener('click', () => {
+    tabOrderBtn.classList.add('active'); tabListBtn.classList.remove('active');
+    orderView.style.display='grid'; listView.style.display='none';
+  });
+  tabListBtn.addEventListener('click', () => {
+    tabListBtn.classList.add('active'); tabOrderBtn.classList.remove('active');
+    listView.style.display='block'; orderView.style.display='none';
+    renderOrdersList();
+    refreshOrders();
+  });
+
+  // ---------- Menu render ----------
+  const menuGrid = document.getElementById('menuGrid');
+  MENU.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.innerHTML = `
+      <div class="item-top">
+        <div class="item-icon" style="background:${item.bg}">${item.icon}</div>
+        <div class="item-info">
+          <h3>${item.name}</h3>
+          <div class="desc">${item.desc}</div>
+        </div>
+      </div>
+      <div class="item-bottom">
+        <div class="price">${fmt(item.price)}</div>
+        <div class="stepper">
+          <button data-act="minus" data-id="${item.id}">−</button>
+          <div class="qty" id="qty-${item.id}">0</div>
+          <button data-act="plus" data-id="${item.id}">+</button>
+        </div>
+      </div>
+    `;
+    menuGrid.appendChild(card);
+  });
+
+  menuGrid.addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if(!btn) return;
+    const id = btn.dataset.id;
+    const act = btn.dataset.act;
+    const cur = cart[id] || 0;
+    if(act === 'plus') cart[id] = Math.min(cur + 1, 99);
+    if(act === 'minus') cart[id] = Math.max(cur - 1, 0);
+    document.getElementById('qty-'+id).textContent = cart[id] || 0;
+    renderCart();
+  });
+
+  // ---------- Cart render ----------
+  const cartItemsEl = document.getElementById('cartItems');
+  const cartTotalEl = document.getElementById('cartTotal');
+  const cartCountBadge = document.getElementById('cartCountBadge');
+  const submitBtn = document.getElementById('submitOrderBtn');
+
+  function renderCart(){
+    const entries = Object.entries(cart).filter(([,q]) => q > 0);
+    let total = 0, count = 0;
+    if(entries.length === 0){
+      cartItemsEl.innerHTML = `
+        <div class="empty-cart">
+          <svg class="glass-icon" viewBox="0 0 40 48" fill="none">
+            <path d="M6 4h28l-3 38a3 3 0 0 1-3 3H12a3 3 0 0 1-3-3L6 4z" stroke="#B7CDBF" stroke-width="2"/>
+            <path d="M8 34h24" stroke="#B7CDBF" stroke-width="2"/>
+          </svg>
+          Giỏ hàng đang trống.<br>Chọn món bạn thích ở bên trái nhé!
+        </div>`;
+    } else {
+      cartItemsEl.innerHTML = entries.map(([id, qty]) => {
+        const item = MENU.find(m => m.id === id);
+        const sub = item.price * qty;
+        total += sub; count += qty;
+        return `
+          <div class="cart-row">
+            <div>
+              <div class="name">${item.icon} ${item.name}</div>
+              <div class="meta">${qty} × ${fmt(item.price)}</div>
+            </div>
+            <div class="amt">${fmt(sub)}</div>
+          </div>`;
+      }).join('');
+    }
+    cartTotalEl.textContent = fmt(total);
+    cartCountBadge.textContent = count + ' món';
+    submitBtn.disabled = count === 0;
+  }
+
+  submitBtn.addEventListener('click', async () => {
+    const entries = Object.entries(cart).filter(([,q]) => q > 0);
+    if(entries.length === 0) return;
+    const items = entries.map(([id, qty]) => {
+      const item = MENU.find(m => m.id === id);
+      return { name: item.name, icon: item.icon, price: item.price, qty };
+    });
+    const total = items.reduce((s,i)=> s + i.price*i.qty, 0);
+    const newOrder = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2,7),
+      name: currentUser,
+      items,
+      total,
+      time: new Date().toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})
+    };
+
+    submitBtn.disabled = true;
+    const oldLabel = submitBtn.textContent;
+    submitBtn.textContent = 'Đang gửi...';
+
+    const latest = await loadOrders();
+    latest.push(newOrder);
+    const ok = await saveOrders(latest);
+    orders = latest;
+
+    cart = {};
+    MENU.forEach(m => { const el = document.getElementById('qty-'+m.id); if(el) el.textContent = '0'; });
+    renderCart();
+    document.getElementById('orderCountTab').textContent = orders.length;
+    submitBtn.textContent = oldLabel;
+
+    if(ok){
+      showToast(`Đã gửi đơn cho ${currentUser} 🎉`);
+    } else {
+      showToast(`Gửi đơn thất bại, thử lại nhé`);
+    }
+  });
+
+  // ---------- Orders list render ----------
+  const ordersListEl = document.getElementById('ordersList');
+  const summaryCount = document.getElementById('summaryCount');
+  const summaryTotal = document.getElementById('summaryTotal');
+
+  function initials(name){
+    return name.trim().split(/\s+/).slice(-2).map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  }
+
+  function renderOrdersList(){
+    if(orders.length === 0){
+      ordersListEl.innerHTML = '';
+      summaryCount.textContent = 'Chưa có đơn nào';
+      summaryTotal.textContent = '0 đ';
+      ordersListEl.innerHTML = `
+        <div class="empty-state">
+          <div class="em-icon">🧾</div>
+          <h3>Chưa có đơn đặt món nào</h3>
+          <p>Các đơn sau khi gửi sẽ hiện ở đây theo từng người.</p>
+        </div>`;
+      return;
+    }
+    const grandTotal = orders.reduce((s,o)=> s+o.total, 0);
+    summaryCount.textContent = `${orders.length} đơn từ ${new Set(orders.map(o=>o.name)).size} người`;
+    summaryTotal.textContent = fmt(grandTotal);
+
+    ordersListEl.innerHTML = orders.slice().reverse().map(o => `
+      <div class="order-card" data-id="${o.id}">
+        <div class="order-head">
+          <div class="who">
+            <div class="avatar">${initials(o.name)}</div>
+            <div class="who-info">
+              <div class="n">${o.name}</div>
+              <div class="t">${o.time} · ${o.items.reduce((s,i)=>s+i.qty,0)} món</div>
+            </div>
+          </div>
+          <div class="right">
+            <div class="tot">${fmt(o.total)}</div>
+            <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+        </div>
+        <div class="order-body">
+          <div class="order-body-inner">
+            ${o.items.map(i => `
+              <div class="ob-row">
+                <div>${i.icon} ${i.name} <span class="meta">× ${i.qty}</span></div>
+                <div>${fmt(i.price * i.qty)}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    ordersListEl.querySelectorAll('.order-head').forEach(head => {
+      head.addEventListener('click', () => {
+        head.closest('.order-card').classList.toggle('open');
+      });
+    });
+  }
+
+  // ---------- Toast ----------
+  let toastTimer;
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> t.classList.remove('show'), 2400);
+  }
+
+  // init
+  renderCart();
+  setTimeout(()=>nameInput.focus(), 200);
+  refreshOrders();
+  setInterval(refreshOrders, 5000); // tự động làm mới đơn dùng chung mỗi 5 giây
+</script>
+</body>
+</html>

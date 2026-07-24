@@ -237,7 +237,41 @@
     padding:16px 20px; margin-bottom:22px; box-shadow:var(--shadow);
   }
   .summary-bar .s-left{font-size:13.5px; color:var(--leaf); font-weight:600;}
+  .summary-actions{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-left:auto;
+  }
   .summary-bar .s-total{font-family:'Fraunces',serif; font-size:22px; font-weight:700; color:var(--forest-deep);}
+  #deleteAllOrdersBtn{
+    border:1px solid rgba(183,52,52,.22);
+    background:#FFF1F1;
+    color:#B73434;
+    border-radius:11px;
+    padding:9px 12px;
+    font-size:12.5px;
+    font-weight:700;
+    white-space:nowrap;
+    transition:background .15s, color .15s, transform .12s, opacity .15s;
+  }
+  #deleteAllOrdersBtn:hover{
+    background:#B73434;
+    color:#fff;
+    transform:translateY(-1px);
+  }
+  #deleteAllOrdersBtn:disabled{
+    opacity:.45;
+    cursor:not-allowed;
+    transform:none;
+  }
+  @media (max-width:560px){
+    .summary-actions{
+      width:100%;
+      justify-content:space-between;
+      margin-left:0;
+    }
+  }
 
   .orders-list{display:flex; flex-direction:column; gap:12px;}
   .order-card{
@@ -367,7 +401,10 @@
         <span id="summaryCount">Chưa có đơn nào</span>
         <span style="color:var(--leaf); font-weight:400;"> · đồng bộ trực tiếp giữa mọi thiết bị</span>
       </div>
-      <div class="s-total" id="summaryTotal">0 đ</div>
+      <div class="summary-actions">
+        <button type="button" id="deleteAllOrdersBtn" disabled>🗑 Xóa tất cả đơn</button>
+        <div class="s-total" id="summaryTotal">0 đ</div>
+      </div>
     </div>
     <div class="orders-list" id="ordersList"></div>
   </div>
@@ -736,6 +773,7 @@
   const ordersListEl = document.getElementById('ordersList');
   const summaryCount = document.getElementById('summaryCount');
   const summaryTotal = document.getElementById('summaryTotal');
+  const deleteAllOrdersBtn = document.getElementById('deleteAllOrdersBtn');
 
   function initials(name){
     return String(name || '?')
@@ -762,6 +800,7 @@
 
   function renderOrdersList(){
     if(orders.length === 0){
+      deleteAllOrdersBtn.disabled = true;
       summaryCount.textContent = 'Chưa có đơn nào';
       summaryTotal.textContent = '0 đ';
       ordersListEl.innerHTML = `
@@ -772,6 +811,8 @@
         </div>`;
       return;
     }
+
+    deleteAllOrdersBtn.disabled = false;
 
     const grandTotal = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
     const people = new Set(orders.map(order => String(order.name || '').trim().toLowerCase())).size;
@@ -869,6 +910,35 @@
       });
     });
   }
+
+  deleteAllOrdersBtn.addEventListener('click', async () => {
+    if(orders.length === 0) return;
+
+    if(!firebaseReady || !ordersRef){
+      showToast('Firebase chưa sẵn sàng');
+      return;
+    }
+
+    const confirmed = confirm(
+      `Xóa toàn bộ ${orders.length} đơn đã đặt? Thao tác này không thể hoàn tác.`
+    );
+    if(!confirmed) return;
+
+    const oldLabel = deleteAllOrdersBtn.textContent;
+    deleteAllOrdersBtn.disabled = true;
+    deleteAllOrdersBtn.textContent = 'Đang xóa tất cả…';
+
+    try{
+      await remove(ordersRef);
+      showToast('Đã xóa tất cả đơn');
+    }catch(error){
+      console.error('Firebase delete-all error:', error);
+      deleteAllOrdersBtn.disabled = false;
+      showToast('Không thể xóa tất cả — kiểm tra Firebase Rules');
+    }finally{
+      deleteAllOrdersBtn.textContent = oldLabel;
+    }
+  });
 
   // ---------- Toast ----------
   let toastTimer;

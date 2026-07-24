@@ -123,6 +123,25 @@
     text-decoration:underline; text-underline-offset:3px; padding:0;
   }
 
+  .sync-status{
+    width:fit-content; margin:10px auto 0; padding:7px 12px;
+    border-radius:100px; display:flex; align-items:center; gap:7px;
+    font-size:11.5px; font-weight:600; border:1px solid var(--line);
+    background:rgba(255,255,255,.75); color:var(--leaf);
+  }
+  .sync-dot{
+    width:8px;height:8px;border-radius:50%;background:#B7A76A;
+    box-shadow:0 0 0 4px rgba(183,167,106,.12);
+  }
+  .sync-status.online{color:#1B6B45;}
+  .sync-status.online .sync-dot{
+    background:#2FA36B; box-shadow:0 0 0 4px rgba(47,163,107,.13);
+  }
+  .sync-status.error{color:#B84242;}
+  .sync-status.error .sync-dot{
+    background:#D95050; box-shadow:0 0 0 4px rgba(217,80,80,.13);
+  }
+
   /* tabs */
   .tabs{
     display:flex; gap:6px; justify-content:center; margin:24px 0 30px;
@@ -290,6 +309,10 @@
       <div class="greet-pill">Xin chào, <span id="greetName">—</span></div>
       <button class="switch-link" id="switchUserBtn">Đổi người khác</button>
     </div>
+    <div class="sync-status connecting" id="syncStatus">
+      <span class="sync-dot"></span>
+      <span id="syncStatusText">Đang kết nối dữ liệu dùng chung…</span>
+    </div>
   </header>
 
   <div class="tabs">
@@ -320,7 +343,7 @@
     <div class="summary-bar">
       <div class="s-left">
         <span id="summaryCount">Chưa có đơn nào</span>
-        <span style="color:var(--leaf); font-weight:400;"> · danh sách dùng chung, tự làm mới mỗi 5 giây</span>
+        <span style="color:var(--leaf); font-weight:400;"> · đồng bộ trực tiếp giữa mọi thiết bị</span>
       </div>
       <div class="s-total" id="summaryTotal">0 đ</div>
     </div>
@@ -330,7 +353,37 @@
 
 <div class="toast" id="toast"></div>
 
-<script>
+
+<script type="module">
+  /*
+   * ============================================================
+   * FIREBASE CONFIG
+   * ============================================================
+   * Thay 7 giá trị bên dưới bằng cấu hình Web App lấy từ:
+   * Firebase Console → Project settings → Your apps → Web app
+   *
+   * QUAN TRỌNG: databaseURL phải là URL của Realtime Database.
+   */
+  const firebaseConfig = {
+  apiKey: "AIzaSyD3n_dJzd7mHEAWK9DSgOP6a4IBnmk5H2M",
+  authDomain: "ordernuocep.firebaseapp.com",
+  databaseURL: "https://ordernuocep-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "ordernuocep",
+  storageBucket: "ordernuocep.firebasestorage.app",
+  messagingSenderId: "702558959076",
+  appId: "1:702558959076:web:984ce2e8bf64aefc7703f1"
+};
+
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+  import {
+    getDatabase,
+    ref,
+    onValue,
+    push,
+    set,
+    serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+
   // ---------- Data ----------
   const MENU = [
     { id:'cam', name:'Nước cam', desc:'Tăng cường hệ miễn dịch', price:15000, icon:'🍊', bg:'#FDECD2' },
@@ -344,37 +397,94 @@
   ];
 
   // ---------- State ----------
-  // currentUser + cart: riêng cho từng thiết bị (chỉ mình bạn thấy trong lúc chọn món)
-  // orders: DÙNG CHUNG cho mọi thiết bị qua window.storage (shared)
   let currentUser = null;
-  let cart = {}; // id -> qty
-  let orders = []; // { id, name, items:[{id,name,price,qty}], total, time }
-  const ORDERS_KEY = 'juice-orders-list';
+  let cart = {};
+  let orders = [];
+  let firebaseReady = false;
+  let database = null;
+  let ordersRef = null;
 
-  async function loadOrders(){
-    try{
-      const res = await window.storage.get(ORDERS_KEY, true);
-      return res && res.value ? JSON.parse(res.value) : [];
-    }catch(e){
-      return [];
-    }
-  }
-  async function saveOrders(list){
-    try{
-      await window.storage.set(ORDERS_KEY, JSON.stringify(list), true);
-      return true;
-    }catch(e){
-      console.error('Lưu đơn thất bại', e);
-      return false;
-    }
-  }
-  async function refreshOrders(){
-    orders = await loadOrders();
-    document.getElementById('orderCountTab').textContent = orders.length;
-    if(listView.style.display !== 'none') renderOrdersList();
+  const fmt = n => Number(n || 0).toLocaleString('vi-VN') + ' đ';
+
+  function escapeHtml(value){
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
   }
 
-  const fmt = n => n.toLocaleString('vi-VN') + ' đ';
+  function configLooksValid(){
+    return !Object.values(firebaseConfig).some(value =>
+      typeof value !== 'string' ||
+      value.includes('DAN_') ||
+      value.includes('TEN_DU_AN') ||
+      value.includes('TEN_DATABASE')
+    );
+  }
+
+  function setSyncStatus(type, message){
+    const box = document.getElementById('syncStatus');
+    const label = document.getElementById('syncStatusText');
+    box.classList.remove('connecting', 'online', 'error');
+    box.classList.add(type);
+    label.textContent = message;
+  }
+
+  // ---------- Firebase realtime ----------
+  function initFirebase(){
+    if(!configLooksValid()){
+      setSyncStatus('error', 'Chưa dán firebaseConfig vào index.html');
+      console.error('Firebase chưa được cấu hình. Hãy thay các giá trị DAN_... trong firebaseConfig.');
+      return;
+    }
+
+    try{
+      const app = initializeApp(firebaseConfig);
+      database = getDatabase(app);
+      ordersRef = ref(database, 'orders');
+
+      /*
+       * onValue chạy một lần khi kết nối và chạy lại ngay khi dữ liệu thay đổi.
+       * Vì vậy các máy đang mở cùng website sẽ thấy đơn mới gần như tức thì.
+       */
+      onValue(
+        ordersRef,
+        snapshot => {
+          const raw = snapshot.val() || {};
+
+          orders = Object.entries(raw)
+            .map(([firebaseKey, order]) => ({
+              ...order,
+              id: order.id || firebaseKey
+            }))
+            .sort((a, b) =>
+              Number(a.createdAt || a.clientCreatedAt || 0) -
+              Number(b.createdAt || b.clientCreatedAt || 0)
+            );
+
+          firebaseReady = true;
+          setSyncStatus('online', 'Đã đồng bộ dữ liệu dùng chung');
+          document.getElementById('orderCountTab').textContent = orders.length;
+
+          if(listView.style.display !== 'none'){
+            renderOrdersList();
+          }
+        },
+        error => {
+          firebaseReady = false;
+          setSyncStatus('error', 'Không thể đọc dữ liệu — kiểm tra Rules');
+          console.error('Firebase realtime listener error:', error);
+          showToast('Không thể kết nối dữ liệu dùng chung');
+        }
+      );
+    }catch(error){
+      firebaseReady = false;
+      setSyncStatus('error', 'Cấu hình Firebase chưa đúng');
+      console.error('Firebase init error:', error);
+    }
+  }
 
   // ---------- Modal ----------
   const nameModal = document.getElementById('nameModal');
@@ -384,28 +494,44 @@
   nameInput.addEventListener('input', () => {
     startBtn.disabled = nameInput.value.trim().length === 0;
   });
-  nameInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !startBtn.disabled) startOrdering();
+
+  nameInput.addEventListener('keydown', event => {
+    if(event.key === 'Enter' && !startBtn.disabled){
+      startOrdering();
+    }
   });
+
   startBtn.addEventListener('click', startOrdering);
 
   function startOrdering(){
-    const val = nameInput.value.trim();
-    if(!val) return;
-    currentUser = val;
+    const value = nameInput.value.trim().replace(/\s+/g, ' ');
+    if(!value) return;
+
+    currentUser = value;
     document.getElementById('greetName').textContent = currentUser;
     nameModal.style.display = 'none';
     nameInput.value = '';
+    startBtn.disabled = true;
     renderCart();
   }
 
   document.getElementById('switchUserBtn').addEventListener('click', () => {
-    const hasItems = Object.values(cart).some(q => q > 0);
-    if(hasItems && !confirm('Giỏ hàng hiện tại chưa gửi sẽ bị xoá. Đổi người khác chứ?')) return;
+    const hasItems = Object.values(cart).some(qty => qty > 0);
+
+    if(hasItems && !confirm('Giỏ hàng hiện tại chưa gửi sẽ bị xoá. Đổi người khác chứ?')){
+      return;
+    }
+
     cart = {};
     currentUser = null;
+    document.getElementById('greetName').textContent = '—';
+    MENU.forEach(item => {
+      const qty = document.getElementById('qty-' + item.id);
+      if(qty) qty.textContent = '0';
+    });
+    renderCart();
     nameModal.style.display = 'flex';
-    setTimeout(()=>nameInput.focus(), 100);
+    setTimeout(() => nameInput.focus(), 100);
   });
 
   // ---------- Tabs ----------
@@ -415,18 +541,23 @@
   const listView = document.getElementById('listView');
 
   tabOrderBtn.addEventListener('click', () => {
-    tabOrderBtn.classList.add('active'); tabListBtn.classList.remove('active');
-    orderView.style.display='grid'; listView.style.display='none';
-  });
-  tabListBtn.addEventListener('click', () => {
-    tabListBtn.classList.add('active'); tabOrderBtn.classList.remove('active');
-    listView.style.display='block'; orderView.style.display='none';
-    renderOrdersList();
-    refreshOrders();
+    tabOrderBtn.classList.add('active');
+    tabListBtn.classList.remove('active');
+    orderView.style.display = 'grid';
+    listView.style.display = 'none';
   });
 
-  // ---------- Menu render ----------
+  tabListBtn.addEventListener('click', () => {
+    tabListBtn.classList.add('active');
+    tabOrderBtn.classList.remove('active');
+    listView.style.display = 'block';
+    orderView.style.display = 'none';
+    renderOrdersList();
+  });
+
+  // ---------- Menu ----------
   const menuGrid = document.getElementById('menuGrid');
+
   MENU.forEach(item => {
     const card = document.createElement('div');
     card.className = 'item-card';
@@ -441,36 +572,45 @@
       <div class="item-bottom">
         <div class="price">${fmt(item.price)}</div>
         <div class="stepper">
-          <button data-act="minus" data-id="${item.id}">−</button>
+          <button data-act="minus" data-id="${item.id}" aria-label="Giảm ${item.name}">−</button>
           <div class="qty" id="qty-${item.id}">0</div>
-          <button data-act="plus" data-id="${item.id}">+</button>
+          <button data-act="plus" data-id="${item.id}" aria-label="Tăng ${item.name}">+</button>
         </div>
       </div>
     `;
     menuGrid.appendChild(card);
   });
 
-  menuGrid.addEventListener('click', e => {
-    const btn = e.target.closest('button');
-    if(!btn) return;
-    const id = btn.dataset.id;
-    const act = btn.dataset.act;
-    const cur = cart[id] || 0;
-    if(act === 'plus') cart[id] = Math.min(cur + 1, 99);
-    if(act === 'minus') cart[id] = Math.max(cur - 1, 0);
-    document.getElementById('qty-'+id).textContent = cart[id] || 0;
+  menuGrid.addEventListener('click', event => {
+    const button = event.target.closest('button');
+    if(!button) return;
+
+    const id = button.dataset.id;
+    const action = button.dataset.act;
+    const current = cart[id] || 0;
+
+    if(action === 'plus') cart[id] = Math.min(current + 1, 99);
+    if(action === 'minus') cart[id] = Math.max(current - 1, 0);
+
+    document.getElementById('qty-' + id).textContent = cart[id] || 0;
     renderCart();
   });
 
-  // ---------- Cart render ----------
+  // ---------- Cart ----------
   const cartItemsEl = document.getElementById('cartItems');
   const cartTotalEl = document.getElementById('cartTotal');
   const cartCountBadge = document.getElementById('cartCountBadge');
   const submitBtn = document.getElementById('submitOrderBtn');
 
+  function getCartEntries(){
+    return Object.entries(cart).filter(([, qty]) => qty > 0);
+  }
+
   function renderCart(){
-    const entries = Object.entries(cart).filter(([,q]) => q > 0);
-    let total = 0, count = 0;
+    const entries = getCartEntries();
+    let total = 0;
+    let count = 0;
+
     if(entries.length === 0){
       cartItemsEl.innerHTML = `
         <div class="empty-cart">
@@ -480,76 +620,125 @@
           </svg>
           Giỏ hàng đang trống.<br>Chọn món bạn thích ở bên trái nhé!
         </div>`;
-    } else {
+    }else{
       cartItemsEl.innerHTML = entries.map(([id, qty]) => {
-        const item = MENU.find(m => m.id === id);
-        const sub = item.price * qty;
-        total += sub; count += qty;
+        const item = MENU.find(menuItem => menuItem.id === id);
+        const subtotal = item.price * qty;
+        total += subtotal;
+        count += qty;
+
         return `
           <div class="cart-row">
             <div>
               <div class="name">${item.icon} ${item.name}</div>
               <div class="meta">${qty} × ${fmt(item.price)}</div>
             </div>
-            <div class="amt">${fmt(sub)}</div>
+            <div class="amt">${fmt(subtotal)}</div>
           </div>`;
       }).join('');
     }
+
     cartTotalEl.textContent = fmt(total);
     cartCountBadge.textContent = count + ' món';
     submitBtn.disabled = count === 0;
   }
 
   submitBtn.addEventListener('click', async () => {
-    const entries = Object.entries(cart).filter(([,q]) => q > 0);
+    const entries = getCartEntries();
+
     if(entries.length === 0) return;
+
+    if(!currentUser){
+      nameModal.style.display = 'flex';
+      return;
+    }
+
+    if(!firebaseReady || !ordersRef){
+      showToast('Firebase chưa sẵn sàng — kiểm tra cấu hình và Rules');
+      return;
+    }
+
     const items = entries.map(([id, qty]) => {
-      const item = MENU.find(m => m.id === id);
-      return { name: item.name, icon: item.icon, price: item.price, qty };
+      const item = MENU.find(menuItem => menuItem.id === id);
+      return {
+        id: item.id,
+        name: item.name,
+        icon: item.icon,
+        price: item.price,
+        qty
+      };
     });
-    const total = items.reduce((s,i)=> s + i.price*i.qty, 0);
+
+    const total = items.reduce((sum, item) => sum + item.price * item.qty, 0);
+    const newOrderRef = push(ordersRef);
+
     const newOrder = {
-      id: Date.now() + '-' + Math.random().toString(36).slice(2,7),
+      id: newOrderRef.key,
       name: currentUser,
       items,
       total,
-      time: new Date().toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})
+      createdAt: serverTimestamp(),
+      clientCreatedAt: Date.now()
     };
 
     submitBtn.disabled = true;
     const oldLabel = submitBtn.textContent;
-    submitBtn.textContent = 'Đang gửi...';
+    submitBtn.textContent = 'Đang gửi…';
 
-    const latest = await loadOrders();
-    latest.push(newOrder);
-    const ok = await saveOrders(latest);
-    orders = latest;
+    try{
+      /*
+       * Mỗi đơn dùng một push key riêng nên nhiều người gửi cùng lúc
+       * không ghi đè dữ liệu của nhau.
+       */
+      await set(newOrderRef, newOrder);
 
-    cart = {};
-    MENU.forEach(m => { const el = document.getElementById('qty-'+m.id); if(el) el.textContent = '0'; });
-    renderCart();
-    document.getElementById('orderCountTab').textContent = orders.length;
-    submitBtn.textContent = oldLabel;
+      cart = {};
+      MENU.forEach(item => {
+        const qty = document.getElementById('qty-' + item.id);
+        if(qty) qty.textContent = '0';
+      });
 
-    if(ok){
+      renderCart();
       showToast(`Đã gửi đơn cho ${currentUser} 🎉`);
-    } else {
-      showToast(`Gửi đơn thất bại, thử lại nhé`);
+    }catch(error){
+      console.error('Firebase write error:', error);
+      showToast('Gửi đơn thất bại — kiểm tra Firebase Rules');
+    }finally{
+      submitBtn.textContent = oldLabel;
+      submitBtn.disabled = getCartEntries().length === 0;
     }
   });
 
-  // ---------- Orders list render ----------
+  // ---------- Orders list ----------
   const ordersListEl = document.getElementById('ordersList');
   const summaryCount = document.getElementById('summaryCount');
   const summaryTotal = document.getElementById('summaryTotal');
 
   function initials(name){
-    return name.trim().split(/\s+/).slice(-2).map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    return String(name || '?')
+      .trim()
+      .split(/\s+/)
+      .slice(-2)
+      .map(word => word[0] || '')
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  }
+
+  function formatOrderTime(order){
+    const timestamp = Number(order.createdAt || order.clientCreatedAt || 0);
+    if(!timestamp) return 'Vừa xong';
+
+    return new Date(timestamp).toLocaleString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit'
+    });
   }
 
   function renderOrdersList(){
     if(orders.length === 0){
-      ordersListEl.innerHTML = '';
       summaryCount.textContent = 'Chưa có đơn nào';
       summaryTotal.textContent = '0 đ';
       ordersListEl.innerHTML = `
@@ -560,37 +749,56 @@
         </div>`;
       return;
     }
-    const grandTotal = orders.reduce((s,o)=> s+o.total, 0);
-    summaryCount.textContent = `${orders.length} đơn từ ${new Set(orders.map(o=>o.name)).size} người`;
+
+    const grandTotal = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+    const people = new Set(orders.map(order => String(order.name || '').trim().toLowerCase())).size;
+
+    summaryCount.textContent = `${orders.length} đơn từ ${people} người`;
     summaryTotal.textContent = fmt(grandTotal);
 
-    ordersListEl.innerHTML = orders.slice().reverse().map(o => `
-      <div class="order-card" data-id="${o.id}">
-        <div class="order-head">
-          <div class="who">
-            <div class="avatar">${initials(o.name)}</div>
-            <div class="who-info">
-              <div class="n">${o.name}</div>
-              <div class="t">${o.time} · ${o.items.reduce((s,i)=>s+i.qty,0)} món</div>
+    ordersListEl.innerHTML = orders.slice().reverse().map(order => {
+      const safeName = escapeHtml(order.name);
+      const safeItems = Array.isArray(order.items)
+        ? order.items
+        : Object.values(order.items || {});
+
+      return `
+        <div class="order-card" data-id="${escapeHtml(order.id)}">
+          <div class="order-head">
+            <div class="who">
+              <div class="avatar">${escapeHtml(initials(order.name))}</div>
+              <div class="who-info">
+                <div class="n">${safeName}</div>
+                <div class="t">
+                  ${formatOrderTime(order)} ·
+                  ${safeItems.reduce((sum, item) => sum + Number(item.qty || 0), 0)} món
+                </div>
+              </div>
+            </div>
+            <div class="right">
+              <div class="tot">${fmt(order.total)}</div>
+              <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
             </div>
           </div>
-          <div class="right">
-            <div class="tot">${fmt(o.total)}</div>
-            <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          <div class="order-body">
+            <div class="order-body-inner">
+              ${safeItems.map(item => `
+                <div class="ob-row">
+                  <div>
+                    ${escapeHtml(item.icon || '🥤')}
+                    ${escapeHtml(item.name)}
+                    <span class="meta">× ${Number(item.qty || 0)}</span>
+                  </div>
+                  <div>${fmt(Number(item.price || 0) * Number(item.qty || 0))}</div>
+                </div>
+              `).join('')}
+            </div>
           </div>
         </div>
-        <div class="order-body">
-          <div class="order-body-inner">
-            ${o.items.map(i => `
-              <div class="ob-row">
-                <div>${i.icon} ${i.name} <span class="meta">× ${i.qty}</span></div>
-                <div>${fmt(i.price * i.qty)}</div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
     ordersListEl.querySelectorAll('.order-head').forEach(head => {
       head.addEventListener('click', () => {
@@ -601,19 +809,20 @@
 
   // ---------- Toast ----------
   let toastTimer;
-  function showToast(msg){
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
+
+  function showToast(message){
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(()=> t.classList.remove('show'), 2400);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
   }
 
-  // init
+  // ---------- Init ----------
   renderCart();
-  setTimeout(()=>nameInput.focus(), 200);
-  refreshOrders();
-  setInterval(refreshOrders, 5000); // tự động làm mới đơn dùng chung mỗi 5 giây
+  renderOrdersList();
+  setTimeout(() => nameInput.focus(), 200);
+  initFirebase();
 </script>
 </body>
 </html>
